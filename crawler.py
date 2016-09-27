@@ -49,10 +49,14 @@ class Crawler:
 		self.request = urllib2.Request(url)
 		self.request.add_header('User-Agent', useragent)
 		opener = urllib2.build_opener(DefaultErrorHandler())
-		self.data = opener.open(self.request)
+		try:
+			self.data = opener.open(self.request)
+		except urllib2.URLError as err:
+			print str(err)
+			self.data = None
 
 	def get_code(self):
-		return self.data.code
+		return self.data.code if self.data else 404
 
 	def get_data(self):
 		return self.data.read().decode("utf-8", errors='ignore')
@@ -65,18 +69,34 @@ def usage():
 	print "\t-v | --version          : display version and exit."
 	print "\t-d | --debug            : set the debug on."
 	print "\t-u | --user-agent  <ua> : set the user agent."
+	print "\t-r | --recursive        : recursive mode."
 
 
 def version():
 	print "%s %s" % (PROG, VERSION)
 
 
+def extend_links(links, url):
+	parser = LinkHtmlParser()
+	crawler = Crawler(url)
+
+	if crawler.get_code() == 200:
+		parser.set_url(url)
+		parser.reset_links()
+		parser.feed( crawler.get_data() )
+		links.extend(x for x in parser.links if x not in links)
+
+	return links
+
+
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hvdu:", ["help", "version", "debug", "user-agent="])
+		opts, args = getopt.getopt(sys.argv[1:], "hvdu:r", ["help", "version", "debug", "user-agent=", "recursive"])
 	except getopt.GetoptError as err:
 		print str(err)
 		sys.exit(-1)
+
+	recursive = False
 
 	for o,a in opts:
 		if o in ('-h', '--help'):
@@ -89,6 +109,8 @@ if __name__ == "__main__":
 			httplib.HTTPConnection.debuglevel = 1
 		elif o in ('-u', '--user-agent'):
 			USERAGENT = a
+		elif o in ('-r', '--recursive'):
+			recursive = True
 		else:
 			assert False, "Unhandled option"
 
@@ -97,16 +119,15 @@ if __name__ == "__main__":
 		sys.exit(-1)
 
 	links = []
-	parser = LinkHtmlParser()
 
 	for url in args:
-		crawler = Crawler(url)
+		extend_links(links, url)
 
-		if crawler.get_code() == 200:
-			parser.set_url(url)
-			parser.reset_links()
-			parser.feed( crawler.get_data() )
-			links.extend(x for x in parser.links if x not in links)
-
-	for link in links:
-		print link
+	if recursive:
+		for link in links:
+			print link
+			if HTTPRE.match(link):
+				links = extend_links(links, link)
+	else:
+		for link in links:
+			print link
