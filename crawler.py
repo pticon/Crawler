@@ -55,6 +55,8 @@ class LinkHtmlParser(HTMLParser.HTMLParser):
 				pass
 			elif name == 'data-remote' and len(value):
 				pass
+			elif name == 'src' and len(value):
+				pass
 			else:
 				continue
 
