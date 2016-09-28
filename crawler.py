@@ -31,6 +31,9 @@ class LinkHtmlParser(HTMLParser.HTMLParser):
 	def set_local(self, local):
 		self.local = local
 
+	def set_domain(self, domain):
+		self.domain = domain
+
 	def reset_links(self):
 		self.links = []
 
@@ -45,8 +48,11 @@ class LinkHtmlParser(HTMLParser.HTMLParser):
 				if not HTTPRE.match(value):
 					value = urlparse.urljoin(self.url, '/'+value if value[0]=='#' else value)
 				if value not in self.links:
-					if self.local and website != urlparse.urlparse(value).netloc:
+					location = urlparse.urlparse(value).netloc
+					if self.local and website != location:
 						continue
+					if self.domain:
+						value = location
 					self.links.append(value)
 
 
@@ -78,19 +84,21 @@ def usage():
 	print "\t-u | --user-agent  <ua> : set the user agent."
 	print "\t-r | --recursive        : recursive mode."
 	print "\t-l | --local            : stay in the web site."
+	print "\t-D | --domain           : search for domain only."
 
 
 def version():
 	print "%s %s" % (PROG, VERSION)
 
 
-def extend_links(links, url, local):
+def extend_links(links, url, local, domain):
 	parser = LinkHtmlParser()
 	crawler = Crawler(url)
 
 	if crawler.get_code() == 200:
 		parser.set_url(url)
 		parser.set_local(local)
+		parser.set_domain(domain)
 		parser.reset_links()
 		parser.feed( crawler.get_data() )
 		links.extend(x for x in parser.links if x not in links)
@@ -100,13 +108,16 @@ def extend_links(links, url, local):
 
 if __name__ == "__main__":
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "hvdu:rl", ["help", "version", "debug", "user-agent=", "recursive", "local"])
+		opts, args = getopt.getopt(sys.argv[1:],
+				"hvdu:rlD",
+				["help", "version", "debug", "user-agent=", "recursive", "local", "domain"])
 	except getopt.GetoptError as err:
 		print str(err)
 		sys.exit(-1)
 
 	recursive = False
 	local = False
+	domain = False
 
 	for o,a in opts:
 		if o in ('-h', '--help'):
@@ -123,6 +134,8 @@ if __name__ == "__main__":
 			recursive = True
 		elif o in ('-l', '--local'):
 			local = True
+		elif o in ('-D', '--domain'):
+			domain = True
 		else:
 			assert False, "Unhandled option"
 
@@ -133,13 +146,13 @@ if __name__ == "__main__":
 	links = []
 
 	for url in args:
-		extend_links(links, url, local)
+		links = extend_links(links, url, local, domain)
 
 	if recursive:
 		for link in links:
 			print link
 			if HTTPRE.match(link):
-				links = extend_links(links, link, local)
+				links = extend_links(links, link, local, domain)
 	else:
 		for link in links:
 			print link
