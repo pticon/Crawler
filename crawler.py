@@ -25,6 +25,13 @@ class DefaultErrorHandler(urllib2.HTTPDefaultErrorHandler):
 
 
 class LinkHtmlParser(HTMLParser.HTMLParser):
+	def __init__(self, url, local=False, domain=False):
+		HTMLParser.HTMLParser.__init__(self)
+		self.url = url
+		self.local = local
+		self.domain = domain
+		self.links = []
+
 	def set_url(self, url):
 		self.url = url
 
@@ -92,14 +99,10 @@ def version():
 
 
 def extend_links(links, url, local, domain):
-	parser = LinkHtmlParser()
+	parser = LinkHtmlParser(url, local, domain)
 	crawler = Crawler(url)
 
 	if crawler.get_code() == 200:
-		parser.set_url(url)
-		parser.set_local(local)
-		parser.set_domain(domain)
-		parser.reset_links()
 		parser.feed( crawler.get_data() )
 		links.extend(x for x in parser.links if x not in links)
 
