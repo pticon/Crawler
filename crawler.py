@@ -45,29 +45,38 @@ class LinkHtmlParser(HTMLParser.HTMLParser):
 		self.links = []
 
 	def handle_starttag(self, tag, attrs):
-		if tag != 'a':
+		if tag != 'a' and False:
 			return
 
 		website = urlparse.urlparse(self.url).netloc
 
 		for name, value in attrs:
 			if name == 'href' and len(value):
-				if not HTTPRE.match(value):
-					value = urlparse.urljoin(self.url, '/'+value if value[0]=='#' else value)
-				if value not in self.links:
-					location = urlparse.urlparse(value).netloc
-					if self.local and website != location:
-						continue
-					if self.domain:
-						value = location
-					self.links.append(value)
+				pass
+			elif name == 'data-remote' and len(value):
+				pass
+			else:
+				continue
+
+			if not HTTPRE.match(value):
+				value = urlparse.urljoin(self.url, '/'+value if value[0]=='#' else value)
+
+			if value not in self.links:
+				location = urlparse.urlparse(value).netloc
+				if self.local and website != location:
+					continue
+				if self.domain:
+					value = location
+				self.links.append(value)
 
 
 class Crawler:
-	def __init__(self, url, useragent=USERAGENT):
+	def __init__(self, url, useragent=USERAGENT, cookie=None):
 		self.url = url
 		self.request = urllib2.Request(url)
 		self.request.add_header('User-Agent', useragent)
+		if cookie != None:
+			self.request.add_header('Cookie', cookie)
 		opener = urllib2.build_opener(DefaultErrorHandler())
 		try:
 			self.data = opener.open(self.request)
@@ -89,6 +98,7 @@ def usage():
 	print "\t-v | --version          : display version and exit."
 	print "\t-d | --debug            : set the debug on."
 	print "\t-u | --user-agent  <ua> : set the user agent."
+	print "\t-c | --cookie <ookie>   : set a cookie."
 	print "\t-r | --recursive        : recursive mode."
 	print "\t-l | --local            : stay in the web site."
 	print "\t-D | --domain           : search for domain only."
@@ -98,9 +108,9 @@ def version():
 	print "%s %s" % (PROG, VERSION)
 
 
-def extend_links(links, url, local, domain):
+def extend_links(links, url, cookie, local, domain):
 	parser = LinkHtmlParser(url, local, domain)
-	crawler = Crawler(url)
+	crawler = Crawler(url, cookie=cookie)
 
 	if crawler.get_code() == 200:
 		parser.feed( crawler.get_data() )
@@ -112,8 +122,8 @@ def extend_links(links, url, local, domain):
 if __name__ == "__main__":
 	try:
 		opts, args = getopt.getopt(sys.argv[1:],
-				"hvdu:rlD",
-				["help", "version", "debug", "user-agent=", "recursive", "local", "domain"])
+				"hvdc:u:rlD",
+				["help", "version", "debug", "cookie=", "user-agent=", "recursive", "local", "domain"])
 	except getopt.GetoptError as err:
 		print str(err)
 		sys.exit(-1)
@@ -121,6 +131,7 @@ if __name__ == "__main__":
 	recursive = False
 	local = False
 	domain = False
+	cookie = None
 
 	for o,a in opts:
 		if o in ('-h', '--help'):
@@ -131,6 +142,8 @@ if __name__ == "__main__":
 			sys.exit()
 		elif o in ('-d', '--debug'):
 			httplib.HTTPConnection.debuglevel = 1
+		elif o in ('-c', '--cookie'):
+			cookie = a
 		elif o in ('-u', '--user-agent'):
 			USERAGENT = a
 		elif o in ('-r', '--recursive'):
@@ -149,13 +162,13 @@ if __name__ == "__main__":
 	links = []
 
 	for url in args:
-		links = extend_links(links, url, local, domain)
+		links = extend_links(links, url, cookie, local, domain)
 
 	if recursive:
 		for link in links:
 			print link
 			if HTTPRE.match(link):
-				links = extend_links(links, link, local, domain)
+				links = extend_links(links, link, cookie, local, domain)
 	else:
 		for link in links:
 			print link
